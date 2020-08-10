@@ -16,9 +16,9 @@ const errorHandlers = require('./handlers/errorHandlers');
 // create our Express app
 const app = express();
 
-// view engine setup
+// view engine setup (templating engine)
 app.set('views', path.join(__dirname, 'views')); // this is the folder where we keep our pug files
-app.set('view engine', 'pug'); // we use the engine pug, mustache or EJS work great too
+app.set('view engine', 'pug'); // we use the engine pug, mustache or EJS work great too (pug used to be called jade)
 
 // serves up static files from the public folder. Anything in public/ will just be served up as the file it is
 app.use(express.static(path.join(__dirname, 'public')));
@@ -31,17 +31,20 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(expressValidator());
 
 // populates req.cookies with any cookies that came along with the request
+// if session middleware depends on cookie middleware, then the cookie handler must be added first
 app.use(cookieParser());
 
 // Sessions allow us to store data on visitors from request to request
 // This keeps users logged in and allows us to send flash messages
-app.use(session({
-  secret: process.env.SECRET,
-  key: process.env.KEY,
-  resave: false,
-  saveUninitialized: false,
-  store: new MongoStore({ mongooseConnection: mongoose.connection })
-}));
+app.use(
+  session({
+    secret: process.env.SECRET,
+    key: process.env.KEY,
+    resave: false,
+    saveUninitialized: false,
+    store: new MongoStore({ mongooseConnection: mongoose.connection }),
+  })
+);
 
 // // Passport JS is what we use to handle our logins
 app.use(passport.initialize());
@@ -66,10 +69,15 @@ app.use((req, res, next) => {
 });
 
 // After allllll that above middleware, we finally handle our own routes!
+// middleware is called before setting routes, or your route handlers will not have access to functionality added by your middleware.
 app.use('/', routes);
 
 // If that above routes didnt work, we 404 them and forward to error handler
+// Note: HTTP404 and other "error" status codes are not treated as errors. If you want to handle these, you can add a middleware function to do so.
 app.use(errorHandlers.notFound);
+
+// Express comes with a built-in error handler, which takes care of any remaining errors that might be encountered in the app.
+// This default error-handling middleware function is added at the end of the middleware function stack.
 
 // One of our error handlers will see if these errors are just validation errors
 app.use(errorHandlers.flashValidationErrors);
@@ -81,6 +89,7 @@ if (app.get('env') === 'development') {
 }
 
 // production error handler
+// The stack trace is not included in the production environment. To run it in production mode you need to set the environment variable NODE_ENV to 'production'.
 app.use(errorHandlers.productionErrors);
 
 // done! we export it so we can start the site in start.js
